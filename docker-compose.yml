@@ -1,0 +1,60 @@
+# Start the platform:         docker compose up -d --build
+# Train a model (one-off):    docker compose --profile tools run --rm trainer
+# Run monitoring (one-off):   docker compose --profile tools run --rm monitor
+name: spam-detection
+
+x-tools: &tools
+  build:
+    context: .
+    args:
+      REQUIREMENTS: requirements.txt      # includes MLflow
+  profiles: ["tools"]                      # only runs when asked explicitly
+  environment:
+    MLFLOW_TRACKING_URI: http://mlflow:5000
+  volumes:
+    - ./models:/app/models
+    - ./logs:/app/logs
+    - ./data:/app/data
+    - ./reports:/app/reports
+  depends_on:
+    - mlflow
+
+services:
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    restart: unless-stopped
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models     # retrain on the host/trainer, then POST /admin/reload
+      - ./logs:/app/logs         # prediction database + app.log survive container restarts
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - api
+
+  trainer:
+    <<: *tools
+    command: ["python", "-m", "src.train"]
+
+  monitor:
+    <<: *tools
+    command: ["python", "-m", "src.monitor"]
+
+volumes:
+  mlflow-data:

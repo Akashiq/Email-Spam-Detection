@@ -1,0 +1,9 @@
+# Lean runtime dependencies for the serving container (no MLflow, no test tools)
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27
+pydantic>=2.5
+scikit-learn>=1.3
+pandas>=2.0
+numpy>=1.24
+joblib>=1.3
+prometheus-client>=0.19
